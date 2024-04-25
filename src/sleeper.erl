@@ -13,7 +13,9 @@
 -record(state, {tree = empty(), port}).
 
 sleep(MicroSeconds) ->
-    gen_server:call(sleeper, {sleep, MicroSeconds}).
+    Now = os:system_time(microsecond),
+    WakeupTime = Now + MicroSeconds,
+    gen_server:call(sleeper, {wakeupTime, WakeupTime}).
 
 stop(Name) ->
     gen_server:call(Name, stop).
@@ -23,14 +25,13 @@ start_link(Name) ->
 
 init(_Args) ->
     Port = open_port({spawn, "./priv/sleeper"}, [{packet, 4}, binary]),
+    process_flag(trap_exit, true),
     {ok, #state{tree = empty(), port = Port}}.
 
 handle_call(stop, _From, State) ->
     {stop, normal, stopped, State};
 
-handle_call({sleep, MicroSeconds}, From, State = #state{tree = Tree}) ->
-    Now = os:system_time(microsecond),
-    WakeupTime = Now + MicroSeconds,
+handle_call({wakeupTime, WakeupTime}, From, State = #state{tree = Tree}) ->
 
     SleepersList = update_sleepers_list(Tree, WakeupTime, From),
     NewTree = gb_trees:enter(WakeupTime, SleepersList, Tree),
